@@ -18,13 +18,16 @@ export default function AdminPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [filter, setFilter] = useState<number | 'all'>('all');
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [adminId, setAdminId] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [keepLogin, setKeepLogin] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const auth = sessionStorage.getItem('admin_auth');
-    if (auth === 'true') setIsAuthenticated(true);
+    const auth = localStorage.getItem("admin_auth") || sessionStorage.getItem("admin_auth");
+    if (auth === "true") setIsAuthenticated(true);
   }, []);
 
   useEffect(() => {
@@ -32,17 +35,21 @@ export default function AdminPage() {
   }, [isAuthenticated]);
 
   const handleLogin = async () => {
-    const res = await fetch('/api/admin-auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+    const res = await fetch("/api/admin-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: adminId, password }),
     });
     if (res.ok) {
-      sessionStorage.setItem('admin_auth', 'true');
+      if (keepLogin) {
+        localStorage.setItem("admin_auth", "true");
+      } else {
+        sessionStorage.setItem("admin_auth", "true");
+      }
       setIsAuthenticated(true);
-      setError('');
+      setError("");
     } else {
-      setError('パスワードが間違っています');
+      setError("IDまたはパスワードが間違っています");
     }
   };
 
@@ -62,25 +69,111 @@ export default function AdminPage() {
     ? reviews
     : reviews.filter(r => r.rating === filter);
 
+  if (isAuthenticated === null) {
+    return null;
+  }
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">管理者ログイン</h1>
-          <input
-            type="password"
-            placeholder="パスワードを入力"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-10">
+            <p className="text-xs tracking-widest text-gray-400 uppercase mb-1">Admin</p>
+            <h1 className="text-2xl font-light text-gray-800 tracking-wide">管理者ログイン</h1>
+            <div className="w-12 h-px bg-gray-300 mx-auto mt-4"></div>
+          </div>
+
+          <div className="bg-white border border-gray-200 p-8 mb-2">
+            {/* ID */}
+            <div className="mb-6">
+              <label className="block text-sm text-gray-700 font-medium mb-2">管理者ID</label>
+              <input
+                type="text"
+                value={adminId}
+                onChange={(e) => setAdminId(e.target.value)}
+                className="w-full px-3 py-3 border border-gray-200 focus:outline-none focus:border-gray-500 text-gray-700 text-sm bg-white placeholder-gray-300 transition"
+              />
+            </div>
+
+            {/* パスワード */}
+            <div className="mb-6">
+              <label className="block text-sm text-gray-700 font-medium mb-2">パスワード（半角英数）</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  className="w-full px-3 py-3 border border-gray-200 focus:outline-none focus:border-gray-500 text-gray-700 text-sm bg-white placeholder-gray-300 transition pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition"
+                >
+                  {showPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* ログイン状態を維持する */}
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                id="keepLogin"
+                checked={keepLogin}
+                onChange={(e) => setKeepLogin(e.target.checked)}
+                className="w-4 h-4 border-gray-300"
+              />
+              <label htmlFor="keepLogin" className="text-sm text-gray-600">
+                ログイン状態を維持する
+              </label>
+            </div>
+
+            {error && <p className="text-red-400 text-xs mt-4 tracking-wide">{error}</p>}
+          </div>
+
           <button
             onClick={handleLogin}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition"
+            className="w-full bg-gray-200 hover:bg-gray-800 hover:text-white text-gray-600 text-sm tracking-widest py-4 transition"
           >
-            ログイン
+            ログイン ›
           </button>
         </div>
       </div>
@@ -90,90 +183,112 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-xl text-gray-600">読み込み中...</div>
+        <p className="text-sm text-gray-400 tracking-widest">読み込み中...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto pt-8">
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">レビュー管理</h1>
-          <p className="text-gray-600">全 {reviews.length} 件のレビュー</p>
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* ヘッダー */}
+        <div className="text-center mb-10">
+          <p className="text-xs tracking-widest text-gray-400 uppercase mb-1">Admin</p>
+          <h1 className="text-3xl font-light text-gray-800 tracking-wide">レビュー管理</h1>
+          <div className="w-12 h-px bg-gray-300 mx-auto mt-4 mb-3"></div>
+          <p className="text-sm text-gray-400 tracking-wide">全 {reviews.length} 件のレビュー</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem("admin_auth");
+              sessionStorage.removeItem("admin_auth");
+              setIsAuthenticated(false);
+            }}
+            className="mt-4 text-xs tracking-widest text-gray-300 hover:text-gray-500 transition"
+          >
+            ログアウト ›
+          </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="flex gap-2 flex-wrap">
+        {/* フィルター */}
+        <div className="bg-white border border-gray-200 p-4 mb-6">
+          <div className="flex gap-2 flex-wrap justify-center">
             <button
               onClick={() => setFilter("all")}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                filter === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              className={`px-4 py-2 text-xs tracking-widest transition ${
+                filter === "all"
+                  ? "bg-gray-800 text-white"
+                  : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"
               }`}
             >
-              全て ({reviews.length})
+              すべて ({reviews.length})
             </button>
             {[5, 4, 3, 2, 1].map((rating) => (
               <button
                 key={rating}
                 onClick={() => setFilter(rating)}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  filter === rating ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                className={`px-4 py-2 text-xs tracking-widest transition ${
+                  filter === rating
+                    ? "bg-gray-800 text-white"
+                    : "bg-white text-gray-500 border border-gray-200 hover:bg-gray-50"
                 }`}
               >
-                ⭐ {rating} ({reviews.filter((r) => r.rating === rating).length})
+                {"★".repeat(rating)} ({reviews.filter((r) => r.rating === rating).length})
               </button>
             ))}
           </div>
         </div>
 
-        <div className="space-y-4">
+        {/* レビュー一覧 */}
+        <div className="space-y-3">
           {filteredReviews.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-500">レビューがありません</div>
+            <div className="bg-white border border-gray-200 p-12 text-center">
+              <p className="text-sm text-gray-400 tracking-wide">レビューがありません</p>
+            </div>
           ) : (
             filteredReviews.map((review) => (
-              <div key={review.id} className="bg-white rounded-xl shadow-md p-6">
+              <div key={review.id} className="bg-white border border-gray-200 p-6">
                 <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">{"⭐".repeat(review.rating)}</span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                          review.type === "google" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
-                        }`}
-                      >
-                        {review.type === "google" ? "Google投稿" : "フィードバック"}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-sm">{new Date(review.createdAt).toLocaleString("ja-JP")}</p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-yellow-500 tracking-widest">
+                      {"★".repeat(review.rating)}
+                      {"☆".repeat(5 - review.rating)}
+                    </span>
+                    <span
+                      className={`px-2 py-1 text-xs tracking-widest ${
+                        review.type === "google" ? "bg-blue-50 text-blue-400" : "bg-orange-50 text-orange-400"
+                      }`}
+                    >
+                      {review.type === "google" ? "Google投稿" : "フィードバック"}
+                    </span>
                   </div>
+                  <p className="text-xs text-gray-300">{new Date(review.createdAt).toLocaleString("ja-JP")}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-gray-100">
                   <div>
-                    <p className="text-sm text-gray-500">担当スタッフ</p>
-                    <p className="font-semibold text-gray-800">{review.staffName}</p>
+                    <p className="text-xs tracking-widest text-gray-400 uppercase mb-1">Staff</p>
+                    <p className="text-sm text-gray-700">{review.staffName}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">メニュー</p>
-                    <p className="font-semibold text-gray-800">{review.menu}</p>
+                    <p className="text-xs tracking-widest text-gray-400 uppercase mb-1">Menu</p>
+                    <p className="text-sm text-gray-700">{review.menu}</p>
                   </div>
                 </div>
 
                 <div className="mb-4">
-                  <p className="text-sm text-gray-500 mb-1">生成された口コミ文</p>
-                  <p className="bg-gray-50 p-3 rounded-lg text-gray-800">{review.reviewText}</p>
+                  <p className="text-xs tracking-widest text-gray-400 uppercase mb-2">生成された口コミ文</p>
+                  <p className="text-sm text-gray-600 bg-gray-50 p-3 leading-relaxed">{review.reviewText}</p>
                 </div>
 
                 <div className="mb-3">
-                  <p className="text-sm text-gray-500 mb-1">良かった点</p>
-                  <p className="text-gray-700">{review.goodPoints}</p>
+                  <p className="text-xs tracking-widest text-gray-400 uppercase mb-2">良かった点</p>
+                  <p className="text-sm text-gray-600">{review.goodPoints}</p>
                 </div>
 
                 {review.improvements && (
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">改善点</p>
-                    <p className="text-gray-700">{review.improvements}</p>
+                    <p className="text-xs tracking-widest text-gray-400 uppercase mb-2">改善点</p>
+                    <p className="text-sm text-gray-600">{review.improvements}</p>
                   </div>
                 )}
               </div>
@@ -181,9 +296,10 @@ export default function AdminPage() {
           )}
         </div>
 
+        {/* ホームへ戻る */}
         <div className="mt-8 text-center">
-          <a href="/" className="inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-8 rounded-xl transition">
-            アンケートページへ戻る
+          <a href="/" className="inline-block text-xs tracking-widest text-gray-400 hover:text-gray-600 transition">
+            ← アンケートページへ戻る
           </a>
         </div>
       </div>
