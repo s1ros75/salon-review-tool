@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const prompt = `以下の情報をもとに、Googleマップに投稿する自然な口コミ文を生成してください。
+const prompt = `以下の情報をもとに、Googleマップに投稿する自然な口コミ文を生成してください。
 
 担当スタッフ: ${staffName}
 利用メニュー: ${menu}
@@ -25,9 +25,11 @@ export async function POST(request: NextRequest) {
 ${improvements ? `改善点: ${improvements}` : ""}
 
 条件:
-- 100文字以内
+- 必ず文章を完結させること（途中で絶対に切らないこと）
+- 50文字以上100文字以内
 - 自然で親しみやすい文体
-- 具体的な体験を含める`;
+- 具体的な体験を含める
+- 口コミ文のみを返すこと（説明文は不要）`;
 
     // Gemini API呼び出し
     const response = await fetch(
@@ -37,7 +39,7 @@ ${improvements ? `改善点: ${improvements}` : ""}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 500 },
+          generationConfig: { maxOutputTokens: 2048 },
         }),
       },
     );
