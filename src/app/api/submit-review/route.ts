@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { supabase } from "@/lib/supabase";
 import nodemailer from "nodemailer";
 
 interface Review {
   id: string;
-  staffName: string;
+  staff_name: string;
   menu: string;
   rating: number;
-  goodPoints: string;
+  good_points: string;
   improvements?: string;
-  reviewText: string;
+  review_text: string;
   type: "google" | "feedback";
-  createdAt: string;
+  created_at: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -22,32 +21,20 @@ export async function POST(request: NextRequest) {
 
     const review: Review = {
       id: Date.now().toString(),
-      staffName,
+      staff_name: staffName,
       menu,
       rating,
-      goodPoints,
+      good_points: goodPoints,
       improvements,
-      reviewText,
+      review_text: reviewText,
       type: rating >= 4 ? "google" : "feedback",
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
-    // reviews.jsonに保存
-    const filePath = path.join(process.cwd(), "data", "reviews.json");
-    let reviews: Review[] = [];
+    const { error } = await supabase.from("reviews").insert(review);
 
-    try {
-      const data = await fs.readFile(filePath, "utf-8");
-      reviews = JSON.parse(data);
-    } catch (error) {
-      // ファイルが存在しない場合は空配列
-      reviews = [];
-    }
+    if (error) throw error;
 
-    reviews.push(review);
-    await fs.writeFile(filePath, JSON.stringify(reviews, null, 2));
-
-    // 低評価の場合はメール送信
     if (rating <= 3) {
       await sendFeedbackEmail(review);
     }
@@ -64,7 +51,6 @@ async function sendFeedbackEmail(review: Review) {
   const gmailPassword = process.env.GMAIL_APP_PASSWORD;
   const ownerEmail = process.env.OWNER_EMAIL;
 
-  // メール設定が未設定の場合はスキップ
   if (!gmailUser || !gmailPassword || !ownerEmail || gmailUser === "your_gmail@gmail.com") {
     console.log("メール設定が未完了のため、送信をスキップしました");
     return;
@@ -81,28 +67,41 @@ async function sendFeedbackEmail(review: Review) {
   const mailOptions = {
     from: gmailUser,
     to: ownerEmail,
-    subject: `【改善フィードバック】満足度${review.rating}/5 - ${review.staffName}`,
+    subject: `【改善フィードバック】満足度${review.rating}/5 - ${review.staff_name}`,
     html: `
       <h2>お客様からのフィードバック</h2>
-      <p><strong>日時:</strong> ${new Date(review.createdAt).toLocaleString("ja-JP")}</p>
-      <p><strong>担当スタッフ:</strong> ${review.staffName}</p>
+      <p><strong>日時:</strong> ${new Date(review.created_at).toLocaleString("ja-JP")}</p>
+      <p><strong>担当スタッフ:</strong> ${review.staff_name}</p>
       <p><strong>メニュー:</strong> ${review.menu}</p>
       <p><strong>満足度:</strong> ${review.rating}/5</p>
-      <p><strong>良かった点:</strong><br>${review.goodPoints}</p>
+      <p><strong>良かった点:</strong><br>${review.good_points}</p>
       ${review.improvements ? `<p><strong>改善点:</strong><br>${review.improvements}</p>` : ""}
-      <p><strong>生成された口コミ:</strong><br>${review.reviewText}</p>
+      <p><strong>生成された口コミ:</strong><br>${review.review_text}</p>
     `,
   };
 
   await transporter.sendMail(mailOptions);
 }
 
-// 管理者ページ用のGET
 export async function GET() {
   try {
-    const filePath = path.join(process.cwd(), "data", "reviews.json");
-    const data = await fs.readFile(filePath, "utf-8");
-    const reviews = JSON.parse(data);
+    const { data, error } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    // フロントエンドのキャメルケースに変換
+    const reviews = data.map((r) => ({
+      id: r.id,
+      staffName: r.staff_name,
+      menu: r.menu,
+      rating: r.rating,
+      goodPoints: r.good_points,
+      improvements: r.improvements,
+      reviewText: r.review_text,
+      type: r.type,
+      createdAt: r.created_at,
+    }));
+
     return NextResponse.json(reviews);
   } catch (error) {
     return NextResponse.json([]);
