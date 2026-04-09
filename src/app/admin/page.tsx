@@ -18,16 +18,39 @@ export default function AdminPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [filter, setFilter] = useState<number | 'all'>('all');
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchReviews();
+    const auth = sessionStorage.getItem('admin_auth');
+    if (auth === 'true') setIsAuthenticated(true);
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) fetchReviews();
+  }, [isAuthenticated]);
+
+  const handleLogin = async () => {
+    const res = await fetch('/api/admin-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      sessionStorage.setItem('admin_auth', 'true');
+      setIsAuthenticated(true);
+      setError('');
+    } else {
+      setError('パスワードが間違っています');
+    }
+  };
 
   const fetchReviews = async () => {
     try {
       const response = await fetch('/api/submit-review');
       const data = await response.json();
-      setReviews(data.reverse());
+      setReviews(data);
     } catch (error) {
       console.error('Failed to fetch reviews:', error);
     } finally {
@@ -38,6 +61,31 @@ export default function AdminPage() {
   const filteredReviews = filter === 'all'
     ? reviews
     : reviews.filter(r => r.rating === filter);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm">
+          <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">管理者ログイン</h1>
+          <input
+            type="password"
+            placeholder="パスワードを入力"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          <button
+            onClick={handleLogin}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition"
+          >
+            ログイン
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -55,7 +103,6 @@ export default function AdminPage() {
           <p className="text-gray-600">全 {reviews.length} 件のレビュー</p>
         </div>
 
-        {/* フィルター */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
           <div className="flex gap-2 flex-wrap">
             <button
@@ -80,7 +127,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* レビュー一覧 */}
         <div className="space-y-4">
           {filteredReviews.length === 0 ? (
             <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-500">レビューがありません</div>
@@ -135,9 +181,8 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* ホームへ戻るボタン */}
         <div className="mt-8 text-center">
-          　　<a href="/" className="inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-8 rounded-xl transition">
+          <a href="/" className="inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-8 rounded-xl transition">
             アンケートページへ戻る
           </a>
         </div>
