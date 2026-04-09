@@ -27,7 +27,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     const auth = localStorage.getItem("admin_auth") || sessionStorage.getItem("admin_auth");
-    if (auth === "true") setIsAuthenticated(true);
+    if (auth === "true") {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
+    }
   }, []);
 
   useEffect(() => {
