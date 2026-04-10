@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
 interface Review {
   id: string;
@@ -10,13 +11,13 @@ interface Review {
   goodPoints: string;
   improvements?: string;
   reviewText: string;
-  type: 'google' | 'feedback';
+  type: "google" | "feedback";
   createdAt: string;
 }
 
 export default function AdminPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [filter, setFilter] = useState<number | 'all'>('all');
+  const [filter, setFilter] = useState<number | "all">("all");
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [adminId, setAdminId] = useState("");
@@ -37,6 +38,78 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAuthenticated) fetchReviews();
   }, [isAuthenticated]);
+
+  const handleExportCSV = () => {
+    const headers = ["日時", "スタッフ名", "メニュー", "満足度", "種別", "良かった点", "改善点", "口コミ文"];
+    const rows = reviews.map((r) => [
+      new Date(r.createdAt).toLocaleString("ja-JP"),
+      r.staffName,
+      r.menu,
+      r.rating,
+      r.type === "google" ? "Google投稿" : "フィードバック",
+      r.goodPoints,
+      r.improvements || "",
+      r.reviewText,
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `reviews_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 平均評価
+  const averageRating =
+    reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1) : "0";
+
+  // 評価別件数
+  const ratingData = [5, 4, 3, 2, 1].map((rating) => ({
+    rating: `${rating}★`,
+    件数: reviews.filter((r) => r.rating === rating).length,
+  }));
+
+  // 月別件数
+  const monthlyData = reviews
+    .reduce(
+      (acc, r) => {
+        const month = new Date(r.createdAt).toLocaleDateString("ja-JP", { year: "numeric", month: "short" });
+        const existing = acc.find((d) => d.month === month);
+        if (existing) {
+          existing.件数++;
+        } else {
+          acc.push({ month, 件数: 1 });
+        }
+        return acc;
+      },
+      [] as { month: string; 件数: number }[],
+    )
+    .slice(-6);
+
+  // スタッフ別集計
+  const staffData = reviews
+    .reduce(
+      (acc, r) => {
+        const existing = acc.find((d) => d.name === r.staffName);
+        if (existing) {
+          existing.件数++;
+          existing.合計評価 += r.rating;
+          existing.平均評価 = parseFloat((existing.合計評価 / existing.件数).toFixed(1));
+        } else {
+          acc.push({ name: r.staffName, 件数: 1, 合計評価: r.rating, 平均評価: r.rating });
+        }
+        return acc;
+      },
+      [] as { name: string; 件数: number; 合計評価: number; 平均評価: number }[],
+    )
+    .sort((a, b) => b.平均評価 - a.平均評価);
 
   const handleLogin = async () => {
     const res = await fetch("/api/admin-auth", {
@@ -59,19 +132,17 @@ export default function AdminPage() {
 
   const fetchReviews = async () => {
     try {
-      const response = await fetch('/api/submit-review');
+      const response = await fetch("/api/submit-review");
       const data = await response.json();
       setReviews(data);
     } catch (error) {
-      console.error('Failed to fetch reviews:', error);
+      console.error("Failed to fetch reviews:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredReviews = filter === 'all'
-    ? reviews
-    : reviews.filter(r => r.rating === filter);
+  const filteredReviews = filter === "all" ? reviews : reviews.filter((r) => r.rating === filter);
 
   if (isAuthenticated === null) {
     return null;
@@ -211,6 +282,12 @@ export default function AdminPage() {
           >
             ログアウト ›
           </button>
+          <button
+            onClick={handleExportCSV}
+            className="mt-2 text-xs tracking-widest text-gray-300 hover:text-gray-500 transition"
+          >
+            CSVエクスポート ↓
+          </button>
         </div>
 
         {/* フィルター */}
@@ -240,6 +317,108 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* 統計・グラフ */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="bg-white border border-gray-200 p-6 text-center">
+            <p className="text-xs tracking-widest text-gray-400 uppercase mb-2">総レビュー数</p>
+            <p className="text-3xl font-light text-gray-800">{reviews.length}</p>
+          </div>
+          <div className="bg-white border border-gray-200 p-6 text-center">
+            <p className="text-xs tracking-widest text-gray-400 uppercase mb-2">平均評価</p>
+            <p className="text-3xl font-light text-gray-800">
+              {averageRating}
+              <span className="text-sm text-gray-400"> / 5</span>
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 p-6 text-center">
+            <p className="text-xs tracking-widest text-gray-400 uppercase mb-2">Google投稿率</p>
+            <p className="text-3xl font-light text-gray-800">
+              {reviews.length > 0
+                ? Math.round((reviews.filter((r) => r.type === "google").length / reviews.length) * 100)
+                : 0}
+              <span className="text-sm text-gray-400"> %</span>
+            </p>
+          </div>
+        </div>
+
+        {/* 評価別グラフ */}
+        <div className="bg-white border border-gray-200 p-6 mb-6">
+          <p className="text-xs tracking-widest text-gray-400 uppercase mb-6">評価別件数</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={ratingData} barSize={32}>
+              <XAxis
+                dataKey="rating"
+                tick={{ fontSize: 11, fill: "#9ca3af" }}
+                axisLine={{ stroke: "#f3f4f6" }}
+                tickLine={false}
+              />
+              <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ border: "1px solid #e5e7eb", borderRadius: 0, fontSize: 12 }}
+                cursor={{ fill: "#f9fafb" }}
+              />
+              <Bar dataKey="件数" fill="#d1d5db" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 月別グラフ */}
+        <div className="bg-white border border-gray-200 p-6 mb-6">
+          <p className="text-xs tracking-widest text-gray-400 uppercase mb-6">月別レビュー数</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={monthlyData}>
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: "#9ca3af" }}
+                axisLine={{ stroke: "#f3f4f6" }}
+                tickLine={false}
+              />
+              <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ border: "1px solid #e5e7eb", borderRadius: 0, fontSize: 12 }}
+                cursor={{ stroke: "#f3f4f6" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="件数"
+                stroke="#9ca3af"
+                strokeWidth={1}
+                dot={{ fill: "#6b7280", r: 3, strokeWidth: 0 }}
+                activeDot={{ r: 4, fill: "#374151" }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* スタッフ別集計 */}
+        <div className="bg-white border border-gray-200 p-6 mb-6">
+          <p className="text-xs tracking-widest text-gray-400 uppercase mb-4">スタッフ別集計</p>
+          {staffData.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center">データがありません</p>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs tracking-widest text-gray-400 uppercase pb-3">スタッフ名</th>
+                  <th className="text-center text-xs tracking-widest text-gray-400 uppercase pb-3">件数</th>
+                  <th className="text-center text-xs tracking-widest text-gray-400 uppercase pb-3">平均評価</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffData.map((staff) => (
+                  <tr key={staff.name} className="border-b border-gray-50">
+                    <td className="py-3 text-sm text-gray-700">{staff.name}</td>
+                    <td className="py-3 text-sm text-gray-700 text-center">{staff.件数}</td>
+                    <td className="py-3 text-sm text-gray-700 text-center">
+                      {"★".repeat(Math.round(staff.平均評価))} {staff.平均評価}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* レビュー一覧 */}
