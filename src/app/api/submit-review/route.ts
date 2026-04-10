@@ -12,12 +12,24 @@ interface Review {
   review_text: string;
   type: "google" | "feedback";
   created_at: string;
+  user_id: string | null;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { staffName, menu, rating, goodPoints, improvements, reviewText } = body;
+
+    // Supabase Authからユーザー情報を取得
+    const authHeader = request.headers.get("Authorization");
+    let userId = null;
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
+    }
 
     const review: Review = {
       id: Date.now().toString(),
@@ -29,6 +41,7 @@ export async function POST(request: NextRequest) {
       review_text: reviewText,
       type: rating >= 4 ? "google" : "feedback",
       created_at: new Date().toISOString(),
+      user_id: userId,
     };
 
     const { error } = await supabase.from("reviews").insert(review);
@@ -83,13 +96,30 @@ async function sendFeedbackEmail(review: Review) {
   await transporter.sendMail(mailOptions);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { data, error } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
+    // ユーザー情報を取得
+    const authHeader = request.headers.get("Authorization");
+    let userId = null;
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
+    }
+
+    // user_idがある場合はそのユーザーのレビューのみ取得
+    const query = supabase.from("reviews").select("*").order("created_at", { ascending: false });
+
+    if (userId) {
+      query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    // フロントエンドのキャメルケースに変換
     const reviews = data.map((r) => ({
       id: r.id,
       staffName: r.staff_name,

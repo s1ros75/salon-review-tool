@@ -1,5 +1,5 @@
 "use client";
-
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
@@ -132,7 +132,20 @@ export default function AdminPage() {
 
   const fetchReviews = async () => {
     try {
-      const response = await fetch("/api/submit-review");
+      const supabase = createSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch("/api/submit-review", { headers });
       const data = await response.json();
       setReviews(data);
     } catch (error) {
